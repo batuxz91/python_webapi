@@ -1,12 +1,14 @@
-from flask import Flask, render_template
+from fastapi import FastAPI
+from typing import Union
 
-app = Flask(__name__, template_folder='template')
-
-
-@app.route('/')
-def index():
-    return render_template('index.html')
+app = FastAPI()
 
 
-if __name__ == '__main__':
-    app.run(debug=True)
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
+
+
+@app.get("/items/{item_id}")
+def read_item(item_id: int, q: Union[str, None] = None):
+    return {"item_id": item_id, "q": q}
