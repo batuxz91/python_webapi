@@ -1,54 +1,58 @@
 from fastapi import APIRouter
-from pydantic import BaseModel
-
-
-class User(BaseModel):
-    id: int
-    name: str
-    surname: str
-    email: str
-    doc: str
-    typeDoc: int
-
+from db.models.user import User, UserDto
+from db.client import connection
+import json
 
 router = APIRouter(tags=["users"], prefix="/user",
                    responses={404: {"message": "No encontrado"}})
 
-users_list = [User(id=1, name="Cesar", surname="Maydana", email="maydanacesar@gmail.com", doc="32091981", typeDoc="1"),
-              User(id=2, name="Leonardo", surname="Maydana", email="maydanaleo@gmail.com", doc="32091980", typeDoc="1")]
+
+@router.get("/all")
+async def user():
+    users_list = []
+
+    query = 'select * from app_user'
+    for row in connection.cursor().execute(query):
+        users_list.append(User(
+            id=row[0], name=row[1], surname=row[2], email=row[3], doc=row[4], typeDoc=row[5]))
+
+    return users_list
 
 
 @router.get("/{id}")
 async def user(id: int):
-    return search_user(id)
+
+    users_list = []
+    found = False
+
+    for row in connection.cursor().execute("select * from app_user where id=:id", id=id):
+        users_list.append(User(
+            id=row[0], name=row[1], surname=row[2], email=row[3], doc=row[4], typeDoc=row[5]))
+        found = True
+
+    if found:
+        return users_list[0]
+    else:
+        return {"error": "usuario no encontrado"}
 
 
 @router.post("/")
-async def user(user: User):
-    if type(search_user(user.id)) == User:
-        return {"error": "El usuario ya existe"}
-    else:
-        users_list.append(user)
-        return user
+async def user(user: UserDto):
+    for row in connection.cursor().execute("select app_user_seq.nextval from dual"):
+        app_user_seq = row[0]
 
+    app_user_new = [(1, int(app_user_seq)), (2, user.name), (3, user.surname),
+                    (4, user.email), (5, user.doc), (6, int(user.typeDoc))]
 
-@router.put("/")
-async def user(user: User):
+    connection.cursor().executemany(
+        "insert into app_user (id,name,surname,email,doc,doctype) values (:1,:2,:3,:4,:5,:6)", app_user_new)
 
-    for index, saved_user in enumerate(users_list):
-        if saved_user.id == user.id:
-            users_list[index] = user
-            found = True
+    connection.commit()
+    print(connection.cursor.rowcount, "Rows Inserted")
 
-    if not found:
-        return {"error": "No se encontro el usuario"}
-    else:
-        return search_user(user.id)
+    # users_list = []
+    # for row in connection.cursor().execute("select * from app_user where id=:id", id=app_user_seq):
+    #     users_list.append(User(
+    #         id=row[0], name=row[1], surname=row[2], email=row[3], doc=row[4], typeDoc=row[5]))
 
-
-def search_user(id: int):
-    user = filter(lambda user: user.id == id, users_list)
-    try:
-        return list(user)[0]
-    except:
-        return {"error": "No se encontro el usuario"}
+    return "OK"
